@@ -1,0 +1,34 @@
+***README***
+
+  - T-409-TSAM-2016: Computer Networks Programming Assignment 2 – httpd
+      Álfur Birkir Bjarnason & Sigurjón Freyr Viktorsson
+
+We implemented a HTTP server with multiple possible connections and the basic URIs given. Here are a few points on the implementation.
+
+- We have one main function where we initialize all variables and set up the socket for connections.
+	1. We set the backlog on listen to the same value as our max clients.
+	2. We then have an endless for loop which starts by zeroing out the set readfds so we don't look at unnecessary fds.
+	3. We then add all fds which are not still open (are larger than 0) to the set readfds.
+	4. Then we have a call to select which has a timeout of 30 seconds in which case we just call it again.
+	5. If it doesn't time out then we first check the first socket sockfd to see if there are any pending connections in which case we accept one of them and add that connection to our connection array in an empty space.
+	6. If we receive a connection and the array is full we just drop the connection, this can be changed with a counter on how many open spaces there are (not accepting a new connection if there is no space for it). We don't consider this a problem in our solution since listen only has a backlog of x connections and any more than that can be considered dropped.
+	7. Then we loop over the connection array and check if there are any connections which are ready to be read from.
+	8. We take them one at a time, reading the value they have sent us and sending our response.
+		-This should ensure fairness.
+		-We know this is an ugly for loop but since it is relatively small we didn't consider it a problem
+	9. When we receive a connection request to a page we check if that page is in our list of accepted pages, if it is not we return a 404.
+	10. If we get an error parsing the uri the user might be trying to do something spooky so we send a bad request back. 	11. If we receive a GET request we determine the page to send back and how to render it.
+		-For the /color page we set the style of the body tag.
+		-For the /test page we render all uri parameters and send them along.
+	12. For a POST request we just send back the data with no html, just the header. Then we determine whether to shut down the connection and send the appropriate "Connection" header.
+	13. Then we perform the timed out check which closes all connections which have not been read from for at least 30 seconds.
+
+- Fairness: We think our solution satisfies the fairness condition. It always loops through all open sockets and does one
+read -> send thing on each socket which has given us some input, never twice in a row on the same one.
+
+- Speed considerations: We checked our solution with gprof and valgrind and we didn't see any real time spent inside the
+functions. Our solution never does anything which is O(n^2) just O(n) so I can't see how we can make it any faster than
+writing something O(n) in C. Perhaps just reading over the response once but that is pretty hard. Our solution does not
+leak memory, theres is just always a constant amount of memory left which glib uses to keep track of stuff. There are
+always 3 unfreed blocks when we terminate the program. The response time is very fast for everything up to 256 users. The
+majority of time spent is done printing out stuff for the user to see such as headers and connect messages.
